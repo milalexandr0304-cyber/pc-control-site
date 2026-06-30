@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель управления ПК</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-gray-900 text-white font-sans min-h-screen flex flex-col items-center justify-center p-4">
+    <div class="max-w-md w-full bg-gray-800 p-6 rounded-2xl shadow-xl border border-gray-700">
+        <h1 class="text-2xl font-bold text-center mb-6 text-blue-400">Управление ПК</h1>
+        
+        <!-- Блок показателей -->
+        <div class="grid grid-cols-3 gap-4 mb-6 text-center">
+            <div class="bg-gray-700 p-3 rounded-xl">
+                <div class="text-xs text-gray-400 mb-1">Процессор</div>
+                <div id="cpu" class="text-2xl font-semibold text-green-400">--%</div>
+            </div>
+            <div class="bg-gray-700 p-3 rounded-xl">
+                <div class="text-xs text-gray-400 mb-1">ОЗУ</div>
+                <div id="ram" class="text-2xl font-semibold text-purple-400">--%</div>
+            </div>
+            <div class="bg-gray-700 p-3 rounded-xl">
+                <div class="text-xs text-gray-400 mb-1">Видеокарта</div>
+                <div id="gpu" class="text-2xl font-semibold text-orange-400">--%</div>
+            </div>
+        </div>
+
+        <div class="text-center text-xs text-gray-500 mb-6" id="last-update">Связь...</div>
+
+        <!-- Форма отправки команды -->
+        <div class="space-y-4">
+            <div>
+                <label class="block text-xs text-gray-400 mb-2 font-bold">КОДОВОЕ СЛОВО</label>
+                <input type="password" id="codeword" placeholder="Введите секретный код" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 text-center tracking-widest">
+            </div>
+            <button id="btn-shutdown" class="w-full bg-red-600 hover:bg-red-700 active:scale-95 transition-all text-white font-bold py-4 rounded-xl cursor-pointer shadow-lg shadow-red-950">
+                ВЫКЛЮЧИТЬ КОМПЬЮТЕР
+            </button>
+            <div id="status-msg" class="text-center text-sm font-medium mt-2"></div>
+        </div>
+    </div>
+
+    <script>
+        async function loadStats() {
+            try {
+                const res = await fetch('/api/command');
+                if (!res.ok) throw new Error();
+                const data = await res.json();
+                
+                document.getElementById('cpu').innerText = data.cpu + '%';
+                document.getElementById('ram').innerText = data.ram + '%';
+                document.getElementById('gpu').innerText = data.gpu + '%';
+                
+                const time = new Date(data.created_at).toLocaleTimeString();
+                document.getElementById('last-update').innerText = 'Данные обновлены в ' + time;
+            } catch (e) {
+                document.getElementById('last-update').innerText = 'ПК не в сети (нет данных)';
+            }
+        }
+
+        document.getElementById('btn-shutdown').addEventListener('click', async () => {
+            const codeword = document.getElementById('codeword').value;
+            const msg = document.getElementById('status-msg');
+            
+            if(!codeword) {
+                msg.innerText = 'Сначала введите кодовое слово!';
+                msg.className = 'text-center text-sm font-medium mt-2 text-yellow-400';
+                return;
+            }
+
+            if(!confirm('Вы точно хотите выключить компьютер на расстоянии?')) return;
+
+            msg.innerText = 'Отправка секретной команды...';
+            msg.className = 'text-center text-sm font-medium mt-2 text-gray-400';
+
+            try {
+                const res = await fetch('/api/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ codeword, action: 'shutdown' })
+                });
+                const data = await res.json();
+                
+                if(res.ok) {
+                    msg.innerText = 'Успешно! Сигнал отправлен, ПК выключится.';
+                    msg.className = 'text-center text-sm font-medium mt-2 text-green-400';
+                } else {
+                    msg.innerText = 'Ошибка: ' + (data.error || 'Что-то пошло не так');
+                    msg.className = 'text-center text-sm font-medium mt-2 text-red-400';
+                }
+            } catch(e) {
+                msg.innerText = 'Не удалось связаться с сервером.';
+                msg.className = 'text-center text-sm font-medium mt-2 text-red-400';
+            }
+        });
+
+        // Запрашиваем параметры каждые 5 секунд
+        loadStats();
+        setInterval(loadStats, 5000);
+    </script>
+</body>
+</html>
