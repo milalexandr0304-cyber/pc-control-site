@@ -1,17 +1,13 @@
-// Принудительное обновление конфигурации сервера
-import { createClient } from '@supabase/supabase-js'
-
+import { createClient } from '@supabase/supabase-js';
 
 console.log("--- ДЕБАГ СЕРВЕРА ---");
 console.log("SUPABASE_URL из настроек:", process.env.SUPABASE_URL);
 console.log("SUPABASE_KEY есть в системе?:", process.env.SUPABASE_KEY ? "Да" : "Нет");
 
-// Подключаем базу данных (переменные подставятся из настроек Vercel автоматически)
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY)
-
-export default async function handler(req, res) {
-  // Если сайт просто открыли — отдаем последние характеристики ПК
+export default async (req) => {
+  // Обработка GET-запроса (Отправка статистики на сайт)
   if (req.method === 'GET') {
     const { data, error } = await supabase
       .from('pc_stats')
@@ -20,27 +16,63 @@ export default async function handler(req, res) {
       .limit(1)
       .single();
 
-    if (error) return res.status(500).json({ error: error.message });
-    return res.status(200).json(data);
+    if (error) {
+      return new Response(JSON.stringify({ error: error.message }), { 
+        status: 500, 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    return new Response(JSON.stringify(data), { 
+      status: 200, 
+      headers: { 'Content-Type': 'application/json' } 
+    });
   }
 
-  // Если нажали кнопку выключения — проверяем кодовое слово на сервере
+  // Обработка POST-запроса (Кнопка выключения)
   if (req.method === 'POST') {
-    const { codeword, action } = req.body;
+    let body;
+    try {
+      body = await req.json(); 
+    } catch (e) {
+      return new Response(JSON.stringify({ error: 'Ошибка чтения данных' }), { 
+        status: 400, 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
 
+    const { codeword, action } = body;
+
+    // Сверка кодового слова
     if (!codeword || codeword !== process.env.SECRET_WORD) {
-      return res.status(401).json({ error: 'Неверное кодовое слово!' });
+      return new Response(JSON.stringify({ error: 'Неверное кодовое слово!' }), { 
+        status: 401, 
+        headers: { 'Content-Type': 'application/json' } 
+      });
     }
 
     if (action === 'shutdown') {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('pc_commands')
         .insert([{ command: 'shutdown', is_executed: false }]);
 
-      if (error) return res.status(500).json({ error: error.message });
-      return res.status(200).json({ status: 'success' });
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), { 
+          status: 500, 
+          headers: { 'Content-Type': 'application/json' } 
+        });
+      }
+      
+      return new Response(JSON.stringify({ status: 'success' }), { 
+        status: 200, 
+        headers: { 'Content-Type': 'application/json' } 
+      });
     }
   }
 
-  return res.status(405).json({ error: 'Метод не поддерживается' });
-}
+  // Если метод не распознан
+  return new Response(JSON.stringify({ error: 'Метод не поддерживается' }), { 
+    status: 405, 
+    headers: { 'Content-Type': 'application/json' } 
+  });
+};
