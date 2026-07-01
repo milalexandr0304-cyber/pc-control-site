@@ -1,7 +1,13 @@
 // Принудительное обновление конфигурации сервера
 import { createClient } from '@supabase/supabase-js'
 
+
+console.log("--- ДЕБАГ СЕРВЕРА ---");
+console.log("SUPABASE_URL из настроек:", process.env.SUPABASE_URL);
+console.log("SUPABASE_KEY есть в системе?:", process.env.SUPABASE_KEY ? "Да" : "Нет");
+
 // Подключаем базу данных (переменные подставятся из настроек Vercel автоматически)
+
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY)
 
 export default async function handler(req, res) {
